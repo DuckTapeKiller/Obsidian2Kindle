@@ -1,0 +1,14 @@
+version: '3'
+services:
+    server:
+        build: .
+        image: custom-obsidian2kindle
+        restart: always
+        ports:
+            - "1234:80"
+        volumes:
+            - ./index.php:/var/www/html/index.php
+            - ./fonts:/var/www/html/fonts
+            - ./epubs:/var/www/html/epubs
+            - ./uploads:/var/www/html/uploads
+            - ./css:/var/www/html/css

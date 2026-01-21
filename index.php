@@ -104,6 +104,12 @@ if ($_POST['text'] == '') {
     die;
 }
 
+// Check for frontmatter "Autor" and override author (flexible search in first 1000 chars)
+$head = substr($_POST['text'], 0, 1000);
+if (preg_match('/(?:^|[\r\n])\s*Autor:\s*(.+?)\s*(?:[\r\n]|$)/ui', $head, $matches)) {
+    $_POST['author'] = trim($matches[1]);
+}
+
 // Check for first Headline
 
 use PHPMailer\PHPMailer\Exception;
@@ -175,7 +181,7 @@ $epub->css = file_get_contents('css/base.css');
 
 $cover = imagecreatefromstring(file_get_contents('cover.png'));
 $text_color = imagecolorallocate($cover, 0, 0, 0);
-imagettftext($cover, 50, 0, 5, 220, $text_color, 'fonts/Tahu!.ttf', $_POST['title']);
+imagettftext($cover, 50, 0, 5, 220, $text_color, 'fonts/Roboto-Regular.ttf', $_POST['title']);
 imagettftext($cover, 40, 0, 5, 100, $text_color, 'fonts/Karu-ExtraLight.ttf', $_POST['author']);
 imagettftext($cover, 30, 0, 5, 1550, $text_color, 'fonts/Karu-ExtraLight.ttf', 'OBSIDIAN');
 // save image to file
@@ -197,7 +203,8 @@ if ($_POST['toc'] == 'true') {
     } else {
         $epub->AddPage("<h1>Inhalt</h1>" . $toc, false, 'Inhalt');
     }
-} else {}
+} else {
+}
 
 // if text contains <h
 
