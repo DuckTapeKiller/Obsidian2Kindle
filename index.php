@@ -104,11 +104,22 @@ if ($_POST['text'] == '') {
     die;
 }
 
-// Check for frontmatter "Autor" and override author (flexible search in first 1000 chars)
-$head = substr($_POST['text'], 0, 1000);
-if (preg_match('/(?:^|[\r\n])\s*Autor:\s*(.+?)\s*(?:[\r\n]|$)/ui', $head, $matches)) {
-    $_POST['author'] = trim($matches[1]);
+// DEBUG: Save the first 2000 chars of text to verify what we receive
+file_put_contents('uploads/debug_incoming_text.txt', "--- NEW REQUEST ---\n" . substr($_POST['text'], 0, 2000) . "\n\n", FILE_APPEND);
+
+// Check for frontmatter "Autor" and override author (Ultra-simple search)
+if (preg_match('/Autor:\s*(.*)/i', substr($_POST['text'], 0, 2000), $matches)) {
+    $extracted = trim($matches[1]);
+    // Remove any trailing quotes or newlines aggressively
+    $extracted = preg_replace('/["\r\n].*$/', '', $extracted);
+    $_POST['author'] = trim($extracted);
+    file_put_contents('uploads/debug_incoming_text.txt', "MATCHED AUTHOR: " . $_POST['author'] . "\n", FILE_APPEND);
+} else {
+    file_put_contents('uploads/debug_incoming_text.txt', "NO AUTHOR MATCH FOUND\n", FILE_APPEND);
 }
+
+// CRITICAL: Strip the frontmatter now so it does NOT appear in the EPUB body
+// $_POST['text'] = preg_replace('/^\s*---\s*[\s\S]*?---\s*/', '', $_POST['text']);
 
 // Check for first Headline
 
@@ -181,9 +192,41 @@ $epub->css = file_get_contents('css/base.css');
 
 $cover = imagecreatefromstring(file_get_contents('cover.png'));
 $text_color = imagecolorallocate($cover, 0, 0, 0);
-imagettftext($cover, 50, 0, 5, 220, $text_color, 'fonts/Roboto-Regular.ttf', $_POST['title']);
+$titleText = $_POST['title'];
+$fontSize = 50;
+$fontFile = 'fonts/Roboto-Regular.ttf';
+$maxWidth = 1400; // Assuming cover width allows this, approximate based on 1920? Cover is from cover.png.
+// Let's assume standard A4ish or kindle cover. If cover.png is 1920x1080 (landscape?) or portrait? 
+// The background variable in index.php says 1920x1080 but that is for the HTML page. 
+// cover.png dimensions are unknown but typically covers are portrait. 
+// Let's implement a safe wrapping loop.
+
+$words = explode(' ', $titleText);
+$lines = [];
+$currentLine = '';
+
+foreach ($words as $word) {
+    $testLine = $currentLine . ($currentLine ? ' ' : '') . $word;
+    $bbox = imagettfbbox($fontSize, 0, $fontFile, $testLine);
+    $width = $bbox[2] - $bbox[0];
+    
+    // If width exceeds limit (let's guess 1000px for safety on a typical high-res cover), push to next line
+    if ($width > 1200 && $currentLine !== '') {
+        $lines[] = $currentLine;
+        $currentLine = $word;
+    } else {
+        $currentLine = $testLine;
+    }
+}
+$lines[] = $currentLine;
+
+$y = 220;
+foreach ($lines as $line) {
+    imagettftext($cover, $fontSize, 0, 5, $y, $text_color, $fontFile, $line);
+    $y += 70; // Line height increment
+}
 imagettftext($cover, 40, 0, 5, 100, $text_color, 'fonts/Karu-ExtraLight.ttf', $_POST['author']);
-imagettftext($cover, 30, 0, 5, 1550, $text_color, 'fonts/Karu-ExtraLight.ttf', 'OBSIDIAN');
+// imagettftext($cover, 30, 0, 5, 1550, $text_color, 'fonts/Karu-ExtraLight.ttf', 'OBSIDIAN');
 // save image to file
 imagepng($cover, 'uploads/cover.png');
 $epub->AddImage('uploads/cover.png', false, true);
